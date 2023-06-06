@@ -1,11 +1,11 @@
 #!/bin/bash
 
 echo "[TASK 1] Pull required containers"
-kubeadm config images pull --kubernetes-version=1.24.9 >/dev/null 2>&1
+kubeadm config images pull --kubernetes-version=1.24.12 >/dev/null 2>&1
 
 echo "[TASK 2] Initialize Kubernetes Cluster"
 #kubeadm init --apiserver-advertise-address=172.16.16.100 --pod-network-cidr=192.168.0.0/16 >> /root/kubeinit.log 2>/dev/null
-kubeadm init --pod-network-cidr 10.244.0.0/16 --apiserver-advertise-address=192.168.56.2 --kubernetes-version=1.24.9 --cri-socket unix:///run/containerd/containerd.sock >> /root/kubeinit.log
+kubeadm init --pod-network-cidr 10.244.0.0/16 --apiserver-advertise-address=192.168.56.2 --kubernetes-version=1.24.12 --cri-socket unix:///run/containerd/containerd.sock >> /root/kubeinit.log
 
 echo "[TASK 3] Deploy Calico network"
 kubectl --kubeconfig=/etc/kubernetes/admin.conf create -f https://docs.projectcalico.org/v3.25/manifests/calico.yaml >/dev/null 2>&1

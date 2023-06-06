@@ -51,4 +51,4 @@ apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main" >/dev/
 
 echo "[TASK 9] intall kubernetes apps"
 apt-get update
-apt-get install -y kubelet=1.24.9-00 kubeadm=1.24.9-00 kubectl=1.24.9-00
+apt-get install -y kubelet=1.24.12-00 kubeadm=1.24.12-00 kubectl=1.24.12-00
