@@ -39,3 +39,4 @@ scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no root@192.168.56.2:/joincluster.
 
 echo "[Task 4] Join the cluster"
 #bash /joincluster.sh
+#kubectl label node $(hostname -s)  node-role.kubernetes.io/worker=worker

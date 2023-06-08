@@ -1,3 +1,5 @@
+echo "[TASK 0] prep"
+swapoff -a
 echo "[TASK 1] configure persistent loading of modules"
 # Configure persistent loading of modules
 tee /etc/modules-load.d/containerd.conf <<EOF
