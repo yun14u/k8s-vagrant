@@ -35,7 +35,7 @@ add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(
 echo "[TASK 6] install containerd"
 # Install containerd
 sudo apt update
-sudo apt install -y containerd.io
+sudo apt-get install -y containerd.io=1.6.21
 
 containerd config default | sudo tee /etc/containerd/config.toml >/dev/null 2>&1
 sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml

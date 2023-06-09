@@ -25,3 +25,6 @@ echo "[TASK 6] Setup kubectl"
 mkdir -p $HOME/.kube
 cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 chown $(id -u):$(id -g) $HOME/.kube/config
+
+echo "[TASK 7] lock version for k8s tools"
+apt-mark hold kubeadm kubelet containerd kubectl
