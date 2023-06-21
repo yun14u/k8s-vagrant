@@ -23,7 +23,7 @@ Vagrant.configure("2") do |config|
         end
         node.vm.hostname = "master0#{i}"
         node.vm.network :private_network, ip: IP_NW + "#{MASTER_IP_START + i}"
-        node.vm.network "forwarded_port", guest: 22, host: "#{2710 + i}"
+        node.vm.network "forwarded_port", guest: 22, host: 2222
         node.vm.provision "setup-hosts", :type => "shell", :path => "../ubuntu_1.24/setup-hosts.sh" do |s|
           s.args = ["enp0s8"]
         end
@@ -43,7 +43,7 @@ Vagrant.configure("2") do |config|
         end
         node.vm.hostname = "worker0#{i}"
         node.vm.network :private_network, ip: IP_NW + "#{NODE_IP_START + i}"
-        node.vm.network "forwarded_port", guest: 22, host: "#{2720 + i}"
+        node.vm.network "forwarded_port", guest: 22, host: "#{2230 + i}", auto_correct: true
         node.vm.provision "setup-hosts", :type => "shell", :path => "../ubuntu_1.24/setup-hosts.sh" do |s|
           s.args = ["enp0s8"]
         end
