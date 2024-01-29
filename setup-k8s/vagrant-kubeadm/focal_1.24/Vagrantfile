@@ -8,6 +8,7 @@ IP_NW = "192.168.56."
 MASTER_IP_START = 1
 NODE_IP_START = 2
 Vagrant.configure("2") do |config|
+  config.vm.boot_timeout = 720
   config.vm.box = "ubuntu/focal64"
   # Disable automatic box update checking.
   config.vm.box_check_update = false
@@ -43,7 +44,7 @@ Vagrant.configure("2") do |config|
         end
         node.vm.hostname = "worker0#{i}"
         node.vm.network :private_network, ip: IP_NW + "#{NODE_IP_START + i}"
-        node.vm.network "forwarded_port", guest: 22, host: "#{2230 + i}", auto_correct: true
+        node.vm.network "forwarded_port", guest: 22, host: "#{2200 + i}", auto_correct: true
         node.vm.provision "setup-hosts", :type => "shell", :path => "../ubuntu_1.24/setup-hosts.sh" do |s|
           s.args = ["enp0s8"]
         end
