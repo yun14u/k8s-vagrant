@@ -5,14 +5,16 @@ kubeadm config images pull --kubernetes-version=${VERSION} >/dev/null 2>&1
 
 echo "[TASK 2] Initialize Kubernetes Cluster"
 #crio
-kubeadm init --pod-network-cidr 10.244.0.0/16 --apiserver-advertise-address=192.168.56.2 --kubernetes-version=${VERSION} --cri-socket unix:///var/run/crio/crio.sock  >> /root/kubeinit.log
+#kubeadm init --pod-network-cidr 10.244.0.0/16 --apiserver-advertise-address=192.168.56.2 --kubernetes-version=${VERSION} --cri-socket unix:///var/run/crio/crio.sock  >> /root/kubeinit.log
+#containerd
+kubeadm init --pod-network-cidr 10.244.0.0/16 --apiserver-advertise-address=192.168.56.2 --kubernetes-version=${VERSION} --cri-socket unix:///run/containerd/containerd.sock >> /root/kubeinit.log
 
 echo "[TASK 3] Setup kubectl"
 mkdir -p $HOME/.kube
 cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 chown $(id -u):$(id -g) $HOME/.kube/config
 
-#echo "[TASK 4] Deploy Flannel network"
+echo "[TASK 4] Deploy Flannel network"
 kubectl create -f /var/tmp/flannel/kube-flannel.yml
 
 echo "[TASK 5] Generate and save cluster join command to /joincluster.sh"
