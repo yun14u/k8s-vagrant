@@ -1,7 +1,7 @@
 # README
 
 ## Purpose
-While experiment with K8s cluster, this procedure is to preserver the experiment artifact(s).
+While experiment with K8s cluster, this procedure is to preserve the experiment artifact(s).
 
 ## Copy from Vagrant host
 
