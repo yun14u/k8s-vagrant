@@ -58,6 +58,14 @@ subjects:
   namespace: kube-flannel
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: flannel
+    k8s-app: flannel
+    tier: node
+  name: kube-flannel-cfg
+  namespace: kube-flannel
 data:
   cni-conf.json: |
     {
@@ -87,14 +95,6 @@ data:
         "Type": "vxlan"
       }
     }
-kind: ConfigMap
-metadata:
-  labels:
-    app: flannel
-    k8s-app: flannel
-    tier: node
-  name: kube-flannel-cfg
-  namespace: kube-flannel
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -117,6 +117,13 @@ spec:
         k8s-app: flannel
         tier: node
     spec:
+      serviceAccountName: flannel
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: system-node-critical
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -126,11 +133,56 @@ spec:
                 operator: In
                 values:
                 - linux
+      initContainers:
+      - name: init-xtables
+        image: busybox
+        command: ["sh", "-c", "touch /run/xtables.lock && chmod 600 /run/xtables.lock"]
+        volumeMounts:
+          - name: xtables-lock
+            mountPath: /run/xtables.lock
+      - name: init-br-netfilter
+        image: busybox:latest
+        securityContext:
+          privileged: true
+        command:
+          - sh
+          - -c
+          - |
+            echo "Loading br_netfilter module..."
+            modprobe br_netfilter
+            echo "Setting required sysctl parameters..."
+            sysctl -w net.bridge.bridge-nf-call-iptables=1
+            sysctl -w net.ipv4.ip_forward=1
+            echo "br_netfilter and sysctl setup complete"
+      - name: install-cni-plugin
+        args:
+        - -f
+        - /flannel
+        - /opt/cni/bin/flannel
+        command:
+        - cp
+        image: docker.io/flannel/flannel-cni-plugin:v1.6.2-flannel1
+        volumeMounts:
+        - mountPath: /opt/cni/bin
+          name: cni-plugin
+      - name: install-cni
+        args:
+        - -f
+        - /etc/kube-flannel/cni-conf.json
+        - /etc/cni/net.d/10-flannel.conflist
+        command:
+        - cp
+        image: docker.io/flannel/flannel:v0.26.7
+        volumeMounts:
+        - mountPath: /etc/cni/net.d
+          name: cni
+        - mountPath: /etc/kube-flannel/
+          name: flannel-cfg
       containers:
       - args:
         - --ip-masq
         - --kube-subnet-mgr
-        - --iface=enp0s8    ###
+        - --iface=enp0s8
         command:
         - /opt/bin/flanneld
         env:
@@ -149,13 +201,11 @@ spec:
         resources:
           requests:
             cpu: 100m
-            memory: 50Mi
+            memory: 100Mi
         securityContext:
+          privileged: true
           capabilities:
-            add:
-            - NET_ADMIN
-            - NET_RAW
-          privileged: false
+            add: ["NET_ADMIN", "NET_RAW"]
         volumeMounts:
         - mountPath: /run/flannel
           name: run
@@ -163,37 +213,6 @@ spec:
           name: flannel-cfg
         - mountPath: /run/xtables.lock
           name: xtables-lock
-      hostNetwork: true
-      initContainers:
-      - args:
-        - -f
-        - /flannel
-        - /opt/cni/bin/flannel
-        command:
-        - cp
-        image: docker.io/flannel/flannel-cni-plugin:v1.6.2-flannel1
-        name: install-cni-plugin
-        volumeMounts:
-        - mountPath: /opt/cni/bin
-          name: cni-plugin
-      - args:
-        - -f
-        - /etc/kube-flannel/cni-conf.json
-        - /etc/cni/net.d/10-flannel.conflist
-        command:
-        - cp
-        image: docker.io/flannel/flannel:v0.26.7
-        name: install-cni
-        volumeMounts:
-        - mountPath: /etc/cni/net.d
-          name: cni
-        - mountPath: /etc/kube-flannel/
-          name: flannel-cfg
-      priorityClassName: system-node-critical
-      serviceAccountName: flannel
-      tolerations:
-      - effect: NoSchedule
-        operator: Exists
       volumes:
       - hostPath:
           path: /run/flannel

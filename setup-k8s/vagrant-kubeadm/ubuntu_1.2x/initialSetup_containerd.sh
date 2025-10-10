@@ -11,6 +11,12 @@ net.bridge.bridge-nf-call-ip6tables = 1
 EOF
 sysctl --system
 
+cat > /etc/modules-load.d/k8s.conf << EOF2
+br_netfilter
+overlay
+EOF2
+
+
 echo "[TASK 2] prep repo"
 export OS=xUbuntu_22.04
 export K8S_VERSION=1.29
