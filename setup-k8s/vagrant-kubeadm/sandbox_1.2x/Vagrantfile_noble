@@ -1,0 +1,149 @@
+# -*- mode: ruby -*-
+# vi:set ft=ruby sw=2 ts=2 sts=2:
+# Note:  18 min to upgrade and install k8s on noble instance (ckamaster01)
+#         5 min to install k8s on jammy instance             (ckaworker01)
+NUM_MASTER_NODE = 1
+NUM_WORKER_NODE = 1 
+
+IP_NW = "192.168.56."
+MASTER_IP_START = 1
+NODE_IP_START = 1
+Vagrant.configure("2") do |config|
+
+
+
+  # Base box + SSH resiliency
+  config.vm.box = "ubuntu/jammy64"
+  config.vm.box_check_update = false
+  config.vm.boot_timeout = 720
+  config.ssh.forward_agent       = false
+  config.ssh.connect_timeout     = 60
+  config.ssh.connect_retry_delay = 5
+#  config.ssh.max_tries = 60
+#  config.ssh.timeout  = 600
+
+
+  # Stage shared files early (once per machine at up)
+  config.vm.provision "file", source: "ubuntu_1.2x/netplan_template", destination: "/var/tmp/netplan_template"
+  config.vm.provision "file", source: "ubuntu_1.2x/keys",             destination: "/var/tmp/keys"
+  config.vm.provision "file", source: "ubuntu_1.2x/flannel",           destination: "/var/tmp/flannel"
+
+  # Provision Master Nodes
+  (1..NUM_MASTER_NODE).each do |i|
+      config.vm.define "ckamaster0#{i}" do |node|
+        node.vm.provider "virtualbox" do |vb|
+            vb.name = "ckamaster0#{i}"
+            vb.memory = 2048
+            vb.cpus = 2
+        end
+        node.vm.hostname = "ckamaster0#{i}"
+        node.vm.network :private_network, ip: IP_NW + "#{MASTER_IP_START + i + 50}"
+        node.vm.network "forwarded_port", guest: 22, host: 6223
+
+
+      # --- Phase 0: Pre-upgrade sanity + pull latest Jammy updates ---
+      node.vm.provision "shell", name: "preupdate", privileged: true, inline: <<-'SHELL'
+        set -euxo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -y
+        # Full upgrade on Jammy first (kernel/security fixes)
+        apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+          full-upgrade -y
+        # If a reboot is required, mark it and exit cleanly; the reload provisioner will handle it
+        if [ -f /var/run/reboot-required ]; then
+          echo "reboot needed before release upgrade"
+          exit 0
+        fi
+      SHELL
+
+      # Reboot after Jammy updates if needed
+      node.vm.provision :reload, name: "reload-after-preupdate"
+
+      # --- Phase 1: Prep for non-interactive Noble upgrade ---
+      node.vm.provision "shell", name: "prep-release-upgrade", privileged: true, inline: <<-'SHELL'
+        set -euxo pipefail
+        # Ensure we're allowed to upgrade to the next normal release
+        sed -i 's/^Prompt=.*/Prompt=normal/' /etc/update-manager/release-upgrades || true
+        apt-get install -y update-manager-core
+
+        # Clear stale reboot marker if any leftover from previous cycle (shouldn't be needed but safe)
+        if [ -f /var/run/reboot-required ]; then
+          echo "System still flags reboot-required; performing reboot in next step."
+          exit 0
+        fi
+      SHELL
+
+      # Reboot after the release upgrade
+      node.vm.provision :reload, name: "reload-after-upgrade"
+
+      # --- Phase 2: Perform the Noble upgrade (mostly non-interactive) ---
+      node.vm.provision "shell", name: "do-release-upgrade", privileged: true, inline: <<-'SHELL'
+        set -euxo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        export NEEDRESTART_MODE=a
+
+        # The upgrader often runs in 'screen'; make sure it's present
+        apt-get install -y screen
+
+        # Run the upgrade non-interactively; allow it to take over SSH if needed
+        # DistUpgradeViewNonInteractive suppresses most prompts; dpkg keeps existing configs by default
+        do-release-upgrade -f DistUpgradeViewNonInteractive -m server || true
+
+        # If the tool returned nonzero because it requested a reboot, that's expected.
+        # We’ll reload next and continue post steps after reboot.
+      SHELL
+
+      # Reboot after the release upgrade
+      node.vm.provision :reload, name: "reload-after-upgrade"
+
+      # --- Phase 3: Post-upgrade finishing steps on Noble ---
+      node.vm.provision "shell", name: "post-upgrade-fixups", privileged: true, inline: <<-'SHELL'
+        set -euxo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        # Make sure Noble is fully settled
+        apt-get update -y
+        apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+          dist-upgrade -y
+        apt-get autoremove -y
+        apt-get autoclean -y
+      SHELL
+
+      # If a new kernel landed during dist-upgrade, reboot once more
+      node.vm.provision :reload, name: "reload-after-post-upgrade"
+
+
+
+
+
+        node.vm.provision "setup-hosts", :type => "shell", :path => "ubuntu_1.2x/setup-hosts.sh" do |s|
+          s.args = ["enp0s8"]
+        end
+        node.vm.provision "setup-dns"       , type: "shell", :path => "ubuntu_1.2x/update-dns.sh"
+        node.vm.provision "containerd-setup", type: "shell", path: "ubuntu_1.2x/initialSetup_containerd.sh"
+
+        node.vm.provision "setup-k8s_master", type: "shell", path: "ubuntu_1.2x/setupmaster.sh"
+      end
+  end
+
+
+  # Provision worker nodes
+  (1..NUM_WORKER_NODE).each do |i|
+    config.vm.define "ckaworker0#{i}" do |node|
+        node.vm.provider "virtualbox" do |vb|
+            vb.name = "ckaworker0#{i}"
+            vb.memory = 1024
+            vb.cpus = 1
+        end
+        node.vm.hostname = "ckaworker0#{i}"
+        node.vm.network :private_network, auto_config: false, ip: IP_NW + "#{NODE_IP_START + i + 50}"
+        node.vm.network "forwarded_port", guest: 22, host: 6232, auto_correct: true
+        node.vm.provision "setup-hosts", :type => "shell", :path => "ubuntu_1.2x/setup-hosts.sh" do |s|
+          s.args = ["enp0s8"]
+        end
+        node.vm.provision "setup-dns", type: "shell", :path => "ubuntu_1.2x/update-dns.sh"
+        node.vm.provision "containerd-setup", type: "shell", path: "ubuntu_1.2x/initialSetup_containerd.sh"
+        node.vm.provision "config-net", type: "shell", :path => "ubuntu_1.2x/netconfig.sh"
+        node.vm.provision "setup-k8s_worker", type: "shell", :path => "ubuntu_1.2x/setupworker.sh"
+    end
+  end
+end
