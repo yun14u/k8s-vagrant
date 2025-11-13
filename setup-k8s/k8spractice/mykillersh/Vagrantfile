@@ -16,6 +16,7 @@ Vagrant.configure("2") do |config|
   config.vm.provision "file", source: "ubuntu_1.2x/netplan_template", destination: "/var/tmp/netplan_template"
   config.vm.provision "file", source: "ubuntu_1.2x/keys", destination: "/var/tmp/keys"
   config.vm.provision "file", source: "ubuntu_1.2x/flannel", destination: "/var/tmp/flannel"
+  config.vm.provision "file", source: "ubuntu_1.2x/calico", destination: "/var/tmp/calico"
 
   BRIDGE_ADAPTER = "wlp2s0"
 
