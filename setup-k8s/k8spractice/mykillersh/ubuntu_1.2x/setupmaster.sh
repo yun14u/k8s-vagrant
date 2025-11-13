@@ -16,8 +16,16 @@ mkdir -p $HOME/.kube
 cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 chown $(id -u):$(id -g) $HOME/.kube/config
 
-echo "[TASK 4] Deploy Flannel network"
-kubectl create -f /var/tmp/flannel/kube-flannel.yml
+#echo "[TASK 4a] Deploy Flannel CNI"
+#kubectl create -f /var/tmp/flannel/kube-flannel.yml
+
+echo "[TASK 4b] Deploy Calico CNI"
+kubectl create -f /var/tmp/calico/tigera-operator.yaml
+sleep 90
+kubectl create -f /var/tmp/calico/custom-resources.yaml
+kubectl get tigerastatus
+sleep 180
+kubectl get tigerastatus
 
 echo "[TASK 5] Generate and save cluster join command to /joincluster.sh"
 kubeadm token create --print-join-command > /joincluster.sh 2>/dev/null
